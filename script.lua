@@ -7,17 +7,23 @@ local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
 local playerGui = player:WaitForChild("PlayerGui")
 
--- 1. ОСНОВНОЙ КОНТЕЙНЕР
+-- 1. ЗАЩИТА ОТ ПОВТОРНОГО ЗАПУСКА
+-- Если GUI с таким именем уже есть, скрипт просто остановится
+if playerGui:FindFirstChild("CloudHub") then
+    return 
+end
+
+-- 2. ОСНОВНОЙ КОНТЕЙНЕР
 local CloudHub = Instance.new("ScreenGui")
 CloudHub.Name = "CloudHub"
 CloudHub.DisplayOrder = 999
 CloudHub.ResetOnSpawn = false
 CloudHub.Parent = playerGui
 
--- 2. ГЛАВНЫЙ ФРЕЙМ (Размер обрезан под контент)
+-- 3. ГЛАВНЫЙ ФРЕЙМ (Компактный размер под функции)
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
-MainFrame.Size = UDim2.new(0, 350, 0, 360)
+MainFrame.Size = UDim2.new(0, 350, 0, 360) 
 MainFrame.Position = UDim2.new(0.5, -175, 0.5, -180)
 MainFrame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 MainFrame.BorderSizePixel = 0
@@ -28,7 +34,7 @@ local mainCorner = Instance.new("UICorner")
 mainCorner.CornerRadius = UDim.new(0, 30)
 mainCorner.Parent = MainFrame
 
--- 3. ШАПКА И ПЛАВНАЯ СТРЕЛОЧКА
+-- 4. ШАПКА И ПЛАВНАЯ СТРЕЛОЧКА
 local Header = Instance.new("Frame")
 Header.Size = UDim2.new(1, 0, 0, 60)
 Header.BackgroundTransparency = 1
@@ -37,7 +43,7 @@ Header.Parent = MainFrame
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, -60, 1, 0)
 Title.Position = UDim2.new(0, 25, 0, 0)
-Title.Text = "VISUAL CHANGER" -- Твое новое название
+Title.Text = "VISUAL CHANGER" 
 Title.Font = Enum.Font.GothamBold
 Title.TextColor3 = Color3.fromRGB(50, 50, 60)
 Title.TextSize = 18
@@ -69,7 +75,7 @@ UIList.Parent = Content
 UIList.HorizontalAlignment = Enum.HorizontalAlignment.Center
 UIList.Padding = UDim.new(0, 12)
 
--- --- ФУНКЦИИ ГУИ ---
+-- --- ФУНКЦИИ КОНСТРУКТОРА ГУИ ---
 
 local function AddSlider(name, min, max, startVal, callback)
     local SliderFrame = Instance.new("Frame")
@@ -115,28 +121,9 @@ local function AddSlider(name, min, max, startVal, callback)
         ValueDisplay.Text = tostring(val)
         callback(val)
     end
-    Bar.InputBegan:Connect(
-        function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton1 then
-                dragging = true
-                update()
-            end
-        end
-    )
-    UserInputService.InputChanged:Connect(
-        function(input)
-            if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-                update()
-            end
-        end
-    )
-    UserInputService.InputEnded:Connect(
-        function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton1 then
-                dragging = false
-            end
-        end
-    )
+    Bar.InputBegan:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = true update() end end)
+    UserInputService.InputChanged:Connect(function(input) if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then update() end end)
+    UserInputService.InputEnded:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end end)
 end
 
 local function AddDropdown(name, options, callback)
@@ -172,129 +159,75 @@ local function AddDropdown(name, options, callback)
         b.TextColor3 = Color3.fromRGB(150, 150, 160)
         b.Font = Enum.Font.Gotham
         b.Parent = OptionContainer
-        b.MouseButton1Click:Connect(
-            function()
-                HeaderBtn.Text = name .. " : " .. opt
-                callback(opt)
-                isDropped = false
-                TweenService:Create(DropdownFrame, TweenInfo.new(0.3), {Size = UDim2.new(0.9, 0, 0, 45)}):Play()
-            end
-        )
+        b.MouseButton1Click:Connect(function()
+            HeaderBtn.Text = name .. " : " .. opt
+            callback(opt)
+            isDropped = false
+            TweenService:Create(DropdownFrame, TweenInfo.new(0.3), {Size = UDim2.new(0.9, 0, 0, 45)}):Play()
+        end)
     end
 
-    HeaderBtn.MouseButton1Click:Connect(
-        function()
-            isDropped = not isDropped
-            local target = isDropped and (45 + (#options * 35)) or 45
-            TweenService:Create(
-                DropdownFrame,
-                TweenInfo.new(0.4, Enum.EasingStyle.Quart),
-                {Size = UDim2.new(0.9, 0, 0, target)}
-            ):Play()
-        end
-    )
+    HeaderBtn.MouseButton1Click:Connect(function()
+        isDropped = not isDropped
+        local target = isDropped and (45 + (#options * 35)) or 45
+        TweenService:Create(DropdownFrame, TweenInfo.new(0.4, Enum.EasingStyle.Quart), {Size = UDim2.new(0.9, 0, 0, target)}):Play()
+    end)
 end
 
--- --- ПРИМЕНЕНИЕ ---
+-- --- ПРИМЕНЕНИЕ ЛОГИКИ ---
 
-AddSlider(
-    "Field of View",
-    70,
-    120,
-    70,
-    function(v)
-        camera.FieldOfView = v
+AddSlider("Field of View", 70, 120, 70, function(v) camera.FieldOfView = v end)
+
+AddDropdown("Graphics", {"default", "Neon", "Midnight", "Vintage"}, function(selected)
+    local oldBloom = Lighting:FindFirstChild("NeonBloom")
+    if oldBloom then oldBloom:Destroy() end
+    
+    Lighting.Brightness = 2
+    Lighting.OutdoorAmbient = Color3.fromRGB(127, 127, 127)
+    Lighting.Ambient = Color3.fromRGB(127, 127, 127)
+    Lighting.ExposureCompensation = 0
+    Lighting.ColorShift_Top = Color3.fromRGB(0, 0, 0)
+    Lighting.FogEnd = 100000
+
+    if selected == "default" then
+        Lighting.ClockTime = 14
+        Lighting.Brightness = 3
+    elseif selected == "Neon" then
+        Lighting.ClockTime = 0
+        Lighting.Brightness = 0
+        Lighting.ExposureCompensation = 0.5
+        Lighting.OutdoorAmbient = Color3.fromRGB(45, 0, 80)
+        Lighting.Ambient = Color3.fromRGB(30, 0, 50)
+        Lighting.ColorShift_Top = Color3.fromRGB(120, 0, 255)
+        local b = Instance.new("BloomEffect", Lighting)
+        b.Name = "NeonBloom" b.Intensity = 1.3 b.Size = 24 b.Threshold = 0.8
+    elseif selected == "Midnight" then
+        Lighting.ClockTime = 0
+        Lighting.OutdoorAmbient = Color3.fromRGB(20, 20, 60)
+    elseif selected == "Vintage" then
+        Lighting.ClockTime = 17
+        Lighting.OutdoorAmbient = Color3.fromRGB(150, 110, 80)
+        Lighting.FogColor = Color3.fromRGB(100, 90, 70) Lighting.FogEnd = 2800
     end
-)
+end)
 
-AddDropdown(
-    "Graphics",
-    {"default", "Neon", "Midnight", "Vintage"},
-    function(selected)
-        local oldBloom = Lighting:FindFirstChild("NeonBloom")
-        if oldBloom then
-            oldBloom:Destroy()
-        end
+AddSlider("Time", 0, 24, 14, function(v) Lighting.ClockTime = v end)
 
-        Lighting.Brightness = 2
-        Lighting.OutdoorAmbient = Color3.fromRGB(127, 127, 127)
-        Lighting.Ambient = Color3.fromRGB(127, 127, 127)
-        Lighting.ExposureCompensation = 0
-        Lighting.ColorShift_Top = Color3.fromRGB(0, 0, 0)
-        Lighting.FogEnd = 100000
-
-        if selected == "default" then
-            Lighting.ClockTime = 14
-            Lighting.Brightness = 3
-        elseif selected == "Neon" then
-            Lighting.ClockTime = 0
-            Lighting.Brightness = 0
-            Lighting.ExposureCompensation = 0.5
-            Lighting.OutdoorAmbient = Color3.fromRGB(45, 0, 80)
-            Lighting.Ambient = Color3.fromRGB(30, 0, 50)
-            Lighting.ColorShift_Top = Color3.fromRGB(120, 0, 255)
-            local b = Instance.new("BloomEffect", Lighting)
-            b.Name = "NeonBloom"
-            b.Intensity = 1.3
-            b.Size = 24
-            b.Threshold = 0.8
-        elseif selected == "Midnight" then
-            Lighting.ClockTime = 0
-            Lighting.OutdoorAmbient = Color3.fromRGB(20, 20, 60)
-        elseif selected == "Vintage" then
-            Lighting.ClockTime = 17
-            Lighting.OutdoorAmbient = Color3.fromRGB(150, 110, 80)
-            Lighting.FogColor = Color3.fromRGB(100, 90, 70)
-            Lighting.FogEnd = 2800
-        end
-    end
-)
-
-AddSlider(
-    "Time",
-    0,
-    24,
-    14,
-    function(v)
-        Lighting.ClockTime = v
-    end
-)
-
--- --- СИСТЕМНАЯ ЛОГИКА ---
+-- --- СИСТЕМНАЯ ЛОГИКА ОКНА ---
 
 local isMenuOpened = true
-ArrowBtn.MouseButton1Click:Connect(
-    function()
-        isMenuOpened = not isMenuOpened
-        local targetSize = isMenuOpened and UDim2.new(0, 350, 0, 360) or UDim2.new(0, 350, 0, 60)
-        local targetRot = isMenuOpened and 0 or -90
-        TweenService:Create(MainFrame, TweenInfo.new(0.6, Enum.EasingStyle.Quart), {Size = targetSize}):Play()
-        TweenService:Create(ArrowBtn, TweenInfo.new(0.6, Enum.EasingStyle.Quart), {Rotation = targetRot}):Play()
-    end
-)
+ArrowBtn.MouseButton1Click:Connect(function()
+    isMenuOpened = not isMenuOpened
+    local targetSize = isMenuOpened and UDim2.new(0, 350, 0, 360) or UDim2.new(0, 350, 0, 60)
+    local targetRot = isMenuOpened and 0 or -90
+    TweenService:Create(MainFrame, TweenInfo.new(0.6, Enum.EasingStyle.Quart), {Size = targetSize}):Play()
+    TweenService:Create(ArrowBtn, TweenInfo.new(0.6, Enum.EasingStyle.Quart), {Rotation = targetRot}):Play()
+end)
 
 local d, ds, sp
-Header.InputBegan:Connect(
-    function(i)
-        if i.UserInputType == Enum.UserInputType.MouseButton1 then
-            d = true
-            ds = i.Position
-            sp = MainFrame.Position
-        end
-    end
-)
-UserInputService.InputChanged:Connect(
-    function(i)
-        if d and i.UserInputType == Enum.UserInputType.MouseMovement then
-            local delta = i.Position - ds
-            MainFrame.Position = UDim2.new(sp.X.Scale, sp.X.Offset + delta.X, sp.Y.Scale, sp.Y.Offset + delta.Y)
-        end
-    end
-)
-UserInputService.InputEnded:Connect(
-    function(i)
-        if i.UserInputType == Enum.UserInputType.MouseButton1 then
-            d = false
-        end
-    end
-)
+Header.InputBegan:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 then d = true ds = i.Position sp = MainFrame.Position end end)
+UserInputService.InputChanged:Connect(function(i) if d and i.UserInputType == Enum.UserInputType.MouseMovement then
+    local delta = i.Position - ds
+    MainFrame.Position = UDim2.new(sp.X.Scale, sp.X.Offset + delta.X, sp.Y.Scale, sp.Y.Offset + delta.Y)
+end end)
+UserInputService.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 then d = false end end)
