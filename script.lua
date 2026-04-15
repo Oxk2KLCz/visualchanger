@@ -2,15 +2,16 @@ local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 local Lighting = game:GetService("Lighting")
+local RunService = game:GetService("RunService")
+local StatsService = game:GetService("Stats")
 
 local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
 local playerGui = player:WaitForChild("PlayerGui")
 
 -- 1. ЗАЩИТА ОТ ПОВТОРНОГО ЗАПУСКА
--- Если GUI с таким именем уже есть, скрипт просто остановится
 if playerGui:FindFirstChild("CloudHub") then
-    return 
+    playerGui:FindFirstChild("CloudHub"):Destroy() 
 end
 
 -- 2. ОСНОВНОЙ КОНТЕЙНЕР
@@ -20,7 +21,7 @@ CloudHub.DisplayOrder = 999
 CloudHub.ResetOnSpawn = false
 CloudHub.Parent = playerGui
 
--- 3. ГЛАВНЫЙ ФРЕЙМ (Компактный размер под функции)
+-- 3. ГЛАВНЫЙ ФРЕЙМ
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
 MainFrame.Size = UDim2.new(0, 350, 0, 360) 
@@ -34,7 +35,7 @@ local mainCorner = Instance.new("UICorner")
 mainCorner.CornerRadius = UDim.new(0, 30)
 mainCorner.Parent = MainFrame
 
--- 4. ШАПКА И ПЛАВНАЯ СТРЕЛОЧКА
+-- 4. ШАПКА
 local Header = Instance.new("Frame")
 Header.Size = UDim2.new(1, 0, 0, 60)
 Header.BackgroundTransparency = 1
@@ -174,7 +175,94 @@ local function AddDropdown(name, options, callback)
     end)
 end
 
--- --- ПРИМЕНЕНИЕ ЛОГИКИ ---
+-- ФУНКЦИЯ ДЛЯ ТУМБЛЕРА (ВКЛ/ВЫКЛ)
+local function AddToggle(name, startState, callback)
+    local ToggleFrame = Instance.new("Frame")
+    ToggleFrame.Size = UDim2.new(0.9, 0, 0, 45)
+    ToggleFrame.BackgroundColor3 = Color3.fromRGB(250, 250, 252)
+    ToggleFrame.Parent = Content
+    Instance.new("UICorner", ToggleFrame).CornerRadius = UDim.new(0, 12)
+
+    local Label = Instance.new("TextLabel")
+    Label.Size = UDim2.new(1, -60, 1, 0)
+    Label.Position = UDim2.new(0, 15, 0, 0)
+    Label.Text = name
+    Label.Font = Enum.Font.GothamMedium
+    Label.TextColor3 = Color3.fromRGB(120, 120, 130)
+    Label.TextSize = 14
+    Label.TextXAlignment = Enum.TextXAlignment.Left
+    Label.BackgroundTransparency = 1
+    Label.Parent = ToggleFrame
+
+    local Button = Instance.new("TextButton")
+    Button.Size = UDim2.new(0, 40, 0, 20)
+    Button.Position = UDim2.new(1, -55, 0.5, -10)
+    Button.BackgroundColor3 = startState and Color3.fromRGB(80, 200, 120) or Color3.fromRGB(200, 200, 200)
+    Button.Text = ""
+    Button.Parent = ToggleFrame
+    Instance.new("UICorner", Button).CornerRadius = UDim.new(1, 0)
+
+    local state = startState
+    Button.MouseButton1Click:Connect(function()
+        state = not state
+        callback(state)
+        TweenService:Create(Button, TweenInfo.new(0.3), {BackgroundColor3 = state and Color3.fromRGB(80, 200, 120) or Color3.fromRGB(200, 200, 200)}):Play()
+    end)
+end
+
+-- --- ПЕРФОРМАНС СТАТС ОКНО (КАК НА ФОТО) ---
+
+local PerfStats = Instance.new("Frame")
+PerfStats.Name = "PerformanceStats"
+PerfStats.Size = UDim2.new(0, 180, 0, 75)
+PerfStats.Position = UDim2.new(0.05, 0, 0.05, 0)
+PerfStats.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+PerfStats.BackgroundTransparency = 0.5 -- 50% прозрачности
+PerfStats.BorderSizePixel = 0
+PerfStats.Visible = false -- Изначально скрыто
+PerfStats.Active = true
+PerfStats.Parent = CloudHub
+
+local perfCorner = Instance.new("UICorner")
+perfCorner.CornerRadius = UDim.new(0, 12)
+perfCorner.Parent = PerfStats
+
+local StatsLabel = Instance.new("TextLabel")
+StatsLabel.Size = UDim2.new(1, -30, 1, 0)
+StatsLabel.Position = UDim2.new(0, 15, 0, 0)
+StatsLabel.BackgroundTransparency = 1
+StatsLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+StatsLabel.Font = Enum.Font.GothamMedium
+StatsLabel.TextSize = 16
+StatsLabel.TextXAlignment = Enum.TextXAlignment.Left
+StatsLabel.Parent = PerfStats
+
+-- ЛОГИКА ОБНОВЛЕНИЯ ДАННЫХ (ЗАМЕДЛЕННАЯ)
+local lastUpdate = 0
+local updateInterval = 0.5 -- Обновление раз в полсекунды
+
+RunService.RenderStepped:Connect(function(dt)
+    if PerfStats.Visible then
+        lastUpdate = lastUpdate + dt
+        if lastUpdate >= updateInterval then
+            lastUpdate = 0
+            local fps = math.floor(1/dt)
+            local ping = math.floor(StatsService.Network.ServerStatsItem["Data Ping"]:GetValue())
+            StatsLabel.Text = "PING: " .. ping .. " ms\nFPS: " .. fps
+        end
+    end
+end)
+
+-- ДРАГ ДЛЯ ОКНА СТАТИСТИКИ
+local pd, pds, psp
+PerfStats.InputBegan:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 then pd = true pds = i.Position psp = PerfStats.Position end end)
+UserInputService.InputChanged:Connect(function(i) if pd and i.UserInputType == Enum.UserInputType.MouseMovement then
+    local delta = i.Position - pds
+    PerfStats.Position = UDim2.new(psp.X.Scale, psp.X.Offset + delta.X, psp.Y.Scale, psp.Y.Offset + delta.Y)
+end end)
+UserInputService.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 then pd = false end end)
+
+-- --- НАПОЛНЕНИЕ МЕНЮ ---
 
 AddSlider("Field of View", 70, 120, 70, function(v) camera.FieldOfView = v end)
 
@@ -207,13 +295,19 @@ AddDropdown("Graphics", {"default", "Neon", "Midnight", "Vintage"}, function(sel
     elseif selected == "Vintage" then
         Lighting.ClockTime = 17
         Lighting.OutdoorAmbient = Color3.fromRGB(150, 110, 80)
-        Lighting.FogColor = Color3.fromRGB(100, 90, 70) Lighting.FogEnd = 2800
+        Lighting.FogColor = Color3.fromRGB(100, 90, 70) 
+        Lighting.FogEnd = 2800
     end
 end)
 
 AddSlider("Time", 0, 24, 14, function(v) Lighting.ClockTime = v end)
 
--- --- СИСТЕМНАЯ ЛОГИКА ОКНА ---
+-- ВКЛЮЧАЛКА СТАТИСТИКИ
+AddToggle("Performance Stats", false, function(state)
+    PerfStats.Visible = state
+end)
+
+-- --- СИСТЕМНАЯ ЛОГИКА ГЛАВНОГО ОКНА ---
 
 local isMenuOpened = true
 ArrowBtn.MouseButton1Click:Connect(function()
